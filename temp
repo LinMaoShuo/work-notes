@@ -1,0 +1,469 @@
+{
+	"info": {
+		"_postman_id": "b88e83d7-44e4-4aaf-ade5-1916e6cd1244",
+		"name": "OneCyber",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "获取UEG token",
+			"protocolProfileBehavior": {
+				"disabledSystemHeaders": {
+					"connection": true,
+					"accept-encoding": true,
+					"accept": true,
+					"user-agent": true,
+					"host": true,
+					"content-length": true
+				}
+			},
+			"request": {
+				"auth": {
+					"type": "oauth2",
+					"oauth2": [
+						{
+							"key": "grant_type",
+							"value": "client_credentials",
+							"type": "string"
+						},
+						{
+							"key": "clientId",
+							"value": "",
+							"type": "string"
+						},
+						{
+							"key": "addTokenTo",
+							"value": "queryParams",
+							"type": "string"
+						},
+						{
+							"key": "accessTokenUrl",
+							"value": "https://132.68.40.101:8443/mep/token",
+							"type": "string"
+						},
+						{
+							"key": "client_authentication",
+							"value": "body",
+							"type": "string"
+						},
+						{
+							"key": "useBrowser",
+							"value": true,
+							"type": "boolean"
+						}
+					]
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "Content-Type",
+						"value": " application/json",
+						"type": "text"
+					},
+					{
+						"key": "x-sdk-date",
+						"value": "20250708T081250Z",
+						"type": "default"
+					},
+					{
+						"key": "Authorization",
+						"value": "SDK-HMAC-SHA256 Access=Client4, SignedHeaders=content-type;x-sdk-date, Signature=7ac6bfe95bb2a6e74b3fb4bcf3511301647d1fe021e00366892471fb731e795f",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://132.68.40.101:8443/mep/token",
+					"protocol": "https",
+					"host": [
+						"132",
+						"68",
+						"40",
+						"101"
+					],
+					"port": "8443",
+					"path": [
+						"mep",
+						"token"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "获取5G VN组信息",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/5glan/v1/group/contexts/",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"group",
+						"contexts",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "导入终端IMSI信息",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "[\r\n    {\r\n      \"imsi\": \"100000002\",\r\n      \"description\": \"agv1\"\r\n    }\r\n]\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}/5glan/v1/imsi/add",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"imsi",
+						"add"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "查询指定IMSI信息",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}/5glan/v1/imsi/?imsi={{imsi}}",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"imsi",
+						""
+					],
+					"query": [
+						{
+							"key": "imsi",
+							"value": "{{imsi}}"
+						}
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "查询IMSI信息",
+			"protocolProfileBehavior": {
+				"disableBodyPruning": true
+			},
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}/5glan/v1/imsi/",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"imsi",
+						""
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "修改指定IMSI信息",
+			"request": {
+				"method": "PUT",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "{ \r\n\"description\": \"agv11\"\r\n}\r\n"
+				},
+				"url": {
+					"raw": "{{url}}/5glan/v1/imsi/{{imsi}}",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"imsi",
+						"{{imsi}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "删除IMSI及描述信息",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "[\r\n\t{\r\n      \"imsi\": \"100000003\"\r\n    }\r\n]\r\n"
+				},
+				"url": {
+					"raw": "{{url}}/5glan/v1/imsi/delete",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"imsi",
+						"delete"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "查询5G VN组成员信息",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/5glan/v1/group/{{groupid}}",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"group",
+						"{{groupid}}"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "添加5G VN组成员信息",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "[\r\n    {\"imsi\":\"100000002\"}\r\n]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}/5glan/v1/group/{{groupid}}/members/add",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"group",
+						"{{groupid}}",
+						"members",
+						"add"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "删除5G VN组成员信息",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "[\r\n    {\"imsi\":\"100000002\"}\r\n]",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}/5glan/v1/group/{{groupid}}/members/delete",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"group",
+						"{{groupid}}",
+						"members",
+						"delete"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "查询IMSI归属5G VN组信息",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "GET",
+				"header": [],
+				"url": {
+					"raw": "{{url}}/5glan/v1/imsi/{{imsi}}/groups",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"imsi",
+						"{{imsi}}",
+						"groups"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "导入30个IMSI",
+			"request": {
+				"auth": {
+					"type": "noauth"
+				},
+				"method": "POST",
+				"header": [],
+				"body": {
+					"mode": "raw",
+					"raw": "[\r\n        {\r\n      \"imsi\": \"40000000000001\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"40000000000002\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"40000000000003\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"40000000000004\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {  \r\n      \"imsi\": \"40000000000005\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"40000000000006\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"40000000000007\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"40000000000008\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"40000000000009\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"400000000000010\",\r\n      \"description\": \"agv1\"\r\n    },\r\n        {\r\n      \"imsi\": \"50000000000001\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"50000000000002\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"50000000000003\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"50000000000004\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {  \r\n      \"imsi\": \"50000000000005\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"50000000000006\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"50000000000007\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"50000000000008\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"50000000000009\",\r\n      \"description\": \"agv1\"\r\n    },\r\n    {\r\n      \"imsi\": \"500000000000010\",\r\n      \"description\": \"agv1\"\r\n    }\r\n]\r\n",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "{{url}}/5glan/v1/imsi/add",
+					"host": [
+						"{{url}}"
+					],
+					"path": [
+						"5glan",
+						"v1",
+						"imsi",
+						"add"
+					]
+				}
+			},
+			"response": []
+		}
+	],
+	"event": [
+		{
+			"listen": "prerequest",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		},
+		{
+			"listen": "test",
+			"script": {
+				"type": "text/javascript",
+				"exec": [
+					""
+				]
+			}
+		}
+	],
+	"variable": [
+		{
+			"key": "url",
+			"value": "https://132.68.40.101:8443",
+			"type": "default"
+		},
+		{
+			"key": "groupid",
+			"value": "000003e9-460-08-02",
+			"type": "default"
+		},
+		{
+			"key": "imsi",
+			"value": "100000002",
+			"type": "default"
+		}
+	]
+}
