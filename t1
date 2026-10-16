@@ -1,11 +1,539 @@
-def clear(confirm: bool = True):
+import re
+import time
+
+from pythonspidersdk.logger import logger
+
+from Library.client.client import ApiClient
+from Library.client.common_api import CommonApi
+from Library.client.ssh_client import SSHClient
+
+
+def _common_check_func(get_detail_func, get_detail_para, status_para_name, expected_status, check_para, timeout,
+                       interval=10):
     """
-    confirm=False,
+    公共检查方法，传入方法查询转改还是和检查参数，返回检查结果、以及最近一次检查信息
+    :param get_detail_func: 获取检查对象的函数
+    :param get_detail_para: 列表，获取检查对象的函数的参数列表
+    :param status_para_name： 状态字段名称
+    :param expected_status: 预期状态值，对应status_para_name字段
+    :param check_para: 检查变量，key是字段，value是预期值
+    :param timeout: 超时时长
+    :return:
+        True / False 表示检车是否成功
+        detail 检查信息
     """
-    if not confirm:
-        return {"status": "error", "message": "confirm=True is required"}
-    print("清理")
+    wait_time = 0
+    interval = interval
+    detail = ''
+    while wait_time <= timeout:
+        check_flag = True
+        try:
+            detail = get_detail_func(*get_detail_para)
+        except ValueError:
+            detail = None
+        # 检查VPC不存在
+        if not detail and not expected_status:
+            # 检查成功
+            return True, detail
+        # 检查状态
+        if not detail or detail[status_para_name] != expected_status:
+            check_flag = False
+        # 检查其他可选参数
+        for para_path, para_expect in check_para.items():
+            if check_flag and detail.get_conf(para_path) != para_expect:
+                check_flag = False
+                break
+        if check_flag:
+            return True, detail
+        wait_time += interval
+        time.sleep(interval)
+    return False, detail
 
 
+class TcsmScOpenApi(ApiClient, CommonApi):
+    """
+    接口调用类
+    """
 
-clear()
+    def __init__(self, host, username, password, region_id, tenant_name, tenant_id, callerId='1234567',
+                 meoId='12345678',
+                 port='8443'):
+        super(TcsmScOpenApi, self).__init__(protocol='https', host=host, port=port)
+        self.username = username
+        self.password = password
+        self.callerId = callerId
+        self.meoId = meoId
+        self.region_id = region_id
+        self.tenant_name = tenant_name
+        self.tenant_id = tenant_id
+        self.ecs_ids = {}
+        self.ecs = {}
+        self.evs = {}
+        self.ims = {}
+        self.vpc_ids = {}
+        self.vpc = {}
+        self.network = {}
+        self.subnet = {}
+        self.ports = {}
+        self.snapshots = {}
+        self.acl = {}
+        self.acl_rules = {}
+        self.elb = {}
+        self.nat = {}
+        self.snat_rules = {}
+        self.dnat_rules = {}
+        self.bak_policies = {}
+        self.bak_tasks = {}
+        self.bak_copies = {}
+        self.bak_restores = {}
+
+    def get_token(self):
+        """
+        ---------------
+        北向接口鉴权
+        ---------------
+        :return:
+        """
+        send_data = {
+            'callerId': self.callerId,
+            'meoId': self.meoId,
+            'username': self.username,
+            'password': self.password
+        }
+        r = self.request_return_all('POST', '/v1/caller/authentication/token', send_data)
+        self.set_header('X-Auth-Token', r.headers.get('x-subject-token'))
+        self._vpc()
+        self._vpc_ids()
+
+    def get_token_origin(self):
+        """
+        ------------------------------
+        北向接口鉴权(无租户状态)
+        ------------------------------
+        :return:
+        """
+        send_data = {
+            'callerId': self.callerId,
+            'meoId': self.meoId,
+            'username': self.username,
+            'password': self.password
+        }
+        r = self.request_return_all('POST', '/v1/caller/authentication/token', send_data)
+        self.set_header('X-Auth-Token', r.headers.get('x-subject-token'))
+
+    def close_session(self):
+        """
+        ---------------
+        注销当前会话token
+        ---------------
+        :return:
+        """
+        self.request('DELETE', '/rest/plat/smapp/v1/sessions')
+
+    def get_region_id(self):
+        """
+        -------------------
+        获取云服务环境site ID
+        -------------------
+        :return:
+        """
+        return self.request('GET', f'/v1/sites?callerId={self.callerId}&meoId={self.meoId}')
+
+    def create_tenant(self, tenant_name, tenant_id):
+        """
+        -------------------
+        创建第三方租户
+        -------------------
+        :param tenant_name: 租户名称
+        :param tenant_id: 租户ID
+        :return:
+        """
+        send_data = {
+            'callerId': self.callerId,
+            'meoId': self.meoId,
+            'userId': tenant_id,
+            'userName': tenant_name,
+            'enterprise': 'Huawei',
+            'userQuota': {
+                'cpuQuota': 100,
+                'memoryQuota': 102400,
+                'diskQuota': 1000
+            },
+            'siteList': [{
+                'siteId': self.region_id,
+                'cpuQuota': 100,
+                'memoryQuota': 102400,
+                'diskQuota': 1000
+            }]
+        }
+        self.request('POST', '/v1/tenants', send_data)
+
+    def get_tenant_info(self):
+        """
+        -------------------
+        查询第三方租户详细信息
+        -------------------
+        :return:
+        """
+        try:
+            response = self.request('GET', f'/v1/tenants/{self.tenant_id}?callerId={self.callerId}&meoId={self.meoId}')
+            return response
+        except Exception:
+            logger.info("查询租户失败")
+            return False
+
+    def delete_tenant(self):
+        """
+        -------------------
+        删除第三方租户
+        -------------------
+        :return:
+        """
+        return self.request('DELETE', f'/v1/tenants/{self.tenant_id}?callerId={self.callerId}&meoId={self.meoId}')
+
+    def check_task(self, job_id, timeout: int = 30, interval_time: int = 10):
+        """
+        -------------------
+        查询任务状态
+        -------------------
+        :param job_id: 任务ID
+        :param timeout: 检查任务超时时间（单位：秒）
+        :param interval_time: 每一次查询的间隔时间（单位：秒）
+        :return: True/False
+        """
+        url = f'/v1/jobs/{job_id}?callerId={self.callerId}&meoId={self.meoId}&ResponseId='
+        times = 0
+        while times <= timeout:
+            time.sleep(interval_time)
+            times += interval_time
+            try:
+                task = self.request('GET', url)
+                task_status = task.jobStatus
+            except AttributeError:
+                continue
+            if task_status == 'ERROR' or task_status == 'Error':
+                logger.error('任务执行失败')
+                return False
+            if task_status == 'SUCCESS' or task_status == 'Success':
+                return True
+        logger.error('检查任务超时')
+        return False
+
+    def _get_region(self):
+        sites = self.request('GET', f'/v1/sites?callerId={self.callerId}&meoId={self.meoId}')
+        return sites.siteList
+
+    def _volume_type(self):
+        url = f'/v1/cloudservice/volumetype?callerId={self.callerId}&meoId={self.meoId}&userId={self.tenant_id}&' \
+              f'siteId={self.region_id}'
+        return self.request('GET', url).get('volumeTypeList')
+
+    def _security_group(self):
+        url = f'/v1/os-security-groups?callerId={self.callerId}&siteId={self.region_id}&meoId={self.meoId}&userId={self.tenant_id}'
+        return self.request('GET', url).get('securityGroups')
+
+    def _vpc_ids(self, forced=True):
+        """
+        ---------------------------------------------------------
+        查询并保存VPC的ID，保存key为VPC名称，value为VPC ID的字典
+        ---------------------------------------------------------
+        :param forced:
+        :return:
+        """
+        if not forced and self.vpc_ids:
+            return
+        url = f'/v1/vpcs?callerId={self.callerId}&meoId={self.meoId}&userId={self.tenant_id}&siteId={self.region_id}'
+        vpcs = self.request('GET', url).get('vpcs')
+        for vpc in vpcs:
+            vpc_name = vpc.get('vpcName')
+            self.vpc_ids[vpc_name] = vpc.vpcId
+
+    def _vpc(self, forced=True):
+        """
+        --------------------------------------
+        获取VPC信息、网络信息、子网信息分别保存为字典
+        --------------------------------------
+        self.vpc：{vpc_name: vpc_info}
+        self.network：{vpc_name: {net_name: net_info}}
+        self.subnet：{vpc_name: {net_name: {ipVersion: sub_info}}}
+        :param forced:
+        :return:
+        """
+        if not forced and self.vpc:
+            return
+        url = f'/v1/vpcs?callerId={self.callerId}&meoId={self.meoId}&userId={self.tenant_id}&siteId={self.region_id}'
+        vpcs = self.request('GET', url).get('vpcs')
+        vps_names = []
+        for vpc in vpcs:
+            vpc_name = vpc.vpcName
+            vps_names.append(vpc_name)
+            self.vpc[vpc_name] = self._get_vpc_detail(vpc.vpcId)
+        for vn in vps_names:
+            self.network[vn] = {net.networkName: net for net in self.vpc[vn]['networks']}
+        for vn1 in vps_names:
+            n = {}
+            for net_name, value in self.network[vn1].items():
+                s = {}
+                for sub in value['subnets']:
+                    s[sub['ipVersion']] = sub
+                n[net_name] = s
+            self.subnet[vn1] = n
+
+    def _ecs_ids(self, forced=True):
+        """
+        ---------------------------------------------------------
+        查询并保存ecs的ID，保存key为ecs名称，value为ecs ID的字典
+        ---------------------------------------------------------
+        :param forced:
+        :return:
+        """
+        if not forced and self.ecs_ids:
+            return
+        url = f'/v1/cloudservers?callerId={self.callerId}&meoId={self.meoId}&userId={self.tenant_id}'
+        ecss = self.request('GET', url)
+        for ecs in ecss.get('servers'):
+            ecs_name = ecs.serverName
+            self.ecs_ids[ecs_name] = ecs.id
+
+    def _ecs(self, forced=True):
+        """
+        -----------------------------------
+        获取ecs信息、port信息、分别保存为字典：
+        -----------------------------------
+        self.ecs：{ecs_name: {}}
+        self.ports：{ecs_name: {network_name: {}}}
+        :param forced:
+        :return:
+        """
+        if not forced and self.ecs:
+            return
+        url = f'/v1/cloudservers?callerId={self.callerId}&meoId={self.meoId}&userId={self.tenant_id}'
+        ecss = self.request('GET', url)
+        ecs_names = []
+        if ecss:
+            for ecs in ecss.get('servers'):
+                ecs_name = ecs.serverName
+                ecs_names.append(ecs_name)
+                self.ecs[ecs_name] = self._get_ecs_info(ecs.id)
+            for name in ecs_names:
+                self.ports[name] = {}
+                for net in self.ecs[name]['networkInfo']:
+                    self.ports[name][net['networkName']] = net
+
+    def create_ecs(self, ecs_name, flavor_name, image_name, vpc_name, volumetype_name, nics,
+                   flavorType=1, anti_group=None, security_group_name='default', ecs_passwd='Huawei12#$', count=1):
+        """
+        -------------------
+        创建ECS和BMS
+        -------------------
+        :param ecs_name: 云服务器名称
+        :param flavor_name: 虚拟机规格名称
+        :param image_name: 镜像名称
+        :param vpc_name: vpc名称
+        :param volumetype_name: 磁盘类型名称
+        :param security_group_name: 安全组名称
+        :param flavorType：取值1是VM，2是BM(可选)
+        :param anti_group: 可选参数，虚拟机组id
+        :param nics: 网络名称，创建双栈网口
+        :param ecs_passwd: 云服务器密码
+        :param count 数量
+        :return: 任务ID
+        """
+        self._ims()
+        self._vpc_ids()
+        self._vpc()
+        flavor_id = self._get_flavor_id(flavor_name)
+        volumetype_id = self._get_volumetype_id(volumetype_name)
+        vpc_id = self.vpc_ids[vpc_name]
+        security_group_id = self._get_securitygroup_id(security_group_name)
+        image_id = self.ims[image_name]['id']
+        send_data = {
+            'callerId': self.callerId,
+            'meoId': self.meoId,
+            'siteId': self.region_id,
+            'userId': self.tenant_id,
+            'userName': self.tenant_name,
+            'servers': {
+                'count': count,
+                'flavorId': flavor_id,
+                'flavorType': flavorType,
+                'imageId': image_id,
+                'name': ecs_name,
+                'adminPass': ecs_passwd,
+                'vpcId': vpc_id,
+                'nics': [],
+                'securityGroup': [security_group_id]
+            }
+        }
+        nic_param = []
+        if isinstance(nics, str):
+            net_id = self._get_network_id(vpc_name, nics)
+            nic_param.append({'networkId': net_id})
+        else:
+            for nic in nics:
+                while len(nic) < 3:
+                    nic.append('')
+                net_name, ipaddr, ipaddr_v6 = nic
+                net_id = self._get_network_id(vpc_name, net_name)
+                if ipaddr == '':
+                    nic_param.append({'networkId': net_id})
+                elif ipaddr != '' and ipaddr_v6 == '':
+                    nic_param.append({'networkId': net_id, 'ipAddress': ipaddr})
+                elif ipaddr != '' and ipaddr_v6 != '':
+                    nic_param.append({'networkId': net_id, 'ipAddress': ipaddr, 'ipAddress6': ipaddr_v6})
+        send_data['servers']['nics'] = nic_param
+        if anti_group is not None:
+            send_data['servers']['serverGroup'] = anti_group
+        if flavorType == 1:
+            disk_info = [{'diskSize': 1, 'diskType': 1, 'volumeTypeID': volumetype_id}]
+            send_data['servers']['diskInfo'] = disk_info
+        return self.request('POST', '/v1/cloudservice/cloudservers', send_data).get('jobId')
+
+    def check_ecs(self, ecs_name, expected_status='ACTIVE', timeout=60, interval=10):
+        """
+        检查ecs状态，或检查ecs是否存在
+        :param ecs_name: 检查的ECS名称
+        :param expected_status: 检查预期状态，当检查ecs不存在时，传入空值（None或''）；取值：SHUTOFF/ACTIVE
+        :param timeout: 检查超时时间
+        :param interval: 循环检查时间间隔
+        :return:
+        """
+        times = 0
+        url = f'/v1/cloudservers?callerId={self.callerId}&meoId={self.meoId}&userId={self.tenant_id}'
+        current_ecs_detail = {}
+        while times <= timeout:
+            time.sleep(interval)
+            times += interval
+            ecss = self.request('GET', url)
+            current_ecs = {}
+            ecs_list = []
+            # ecs_list中获取所有ecs
+            if not expected_status and not ecss:
+                logger.info(f'检查ECS:{ecs_name}已不存在')
+                return True
+            for ecs in ecss.get('servers'):
+                ecs_list.append(ecs.serverName)
+                if ecs.serverName == ecs_name:
+                    current_ecs = ecs
+            # 检查ECS已不存在
+            if not expected_status and ecs_name not in ecs_list:
+                logger.info(f'检查ECS {ecs_name}已不存在')
+                return True
+            elif not expected_status and ecs_name in ecs_list:
+                continue
+            # 检查ECS满足预期状态
+            elif current_ecs:
+                try:
+                    ecs_detail = self._get_ecs_info(current_ecs['id'])
+                    current_ecs_detail = ecs_detail
+                except ValueError:
+                    continue
+                if ecs_detail.get('status') == expected_status:
+                    logger.info(f'检查ECS状态成功，状态为{expected_status}')
+                    return True
+        if current_ecs_detail:
+            logger.info(f'检查ECS状态失败，当前ECS状态为{current_ecs_detail.get("status")}，预期状态为{expected_status}')
+        else:
+            logger.info(f'当前ECS:{ecs_name}未删除成功')
+        return False
+
+    def get_ecs_ids(self):
+        """
+        获取所有ecs ID
+        :return: ecsID列表
+        """
+        url = f'/v1/cloudservers?callerId={self.callerId}&meoId={self.meoId}&userId={self.tenant_id}'
+        servers = self.request('GET', url).get('servers')
+        ecs_ids = []
+        if servers:
+            for s in servers:
+                ecs_ids.append(s['id'])
+        return ecs_ids
+
+    def get_ecs_detail(self, ecs_name):
+        """
+        --------------------------------------
+        获取ECS详细信息，ECS不存在时返回空字典
+        --------------------------------------
+        :param ecs_name: ECS名称
+        :return: ECS字典/{}
+        """
+        self._ecs()
+        if ecs_name not in self.ecs:
+            logger.info(f'ECS {ecs_name}不存在，查询ECS信息失败')
+        return self.ecs.get(ecs_name)
+
+    def get_ecs_ipaddr(self, ecs_name, network_name):
+        """
+        ----------------------------------------------------------------------------
+        查询云主机的IP信息，返回包含ipv4和ipv6地址的列表；当没有ipv6地址时，ipv6地址返回空字符串
+        ----------------------------------------------------------------------------
+        :param ecs_name:
+        :param network_name:
+        :return: [ipv4, ipv6]
+        """
+        ecs_info = self.get_ecs_detail(ecs_name)
+        nets = None
+        for net in ecs_info['networkInfo']:
+            if net['networkName'] == network_name:
+                nets = net
+                break
+        ipv4, ipv6 = '', ''
+        for sub in nets['subnetInfo']:
+            if sub.get('ipv4'):
+                ipv4 = sub.get('ipv4')
+            if sub.get('ipv6'):
+                ipv6 = sub.get('ipv6')
+        return [ipv4, ipv6]
+
+    def delete_ecs(self, *ecs_name):
+        """
+        -------------------
+        删除云服务器
+        -------------------
+        :param ecs_name: 云服务器名称；可传入多个ECS名称批量删除
+        :return: 任务id
+        """
+        url = f'/v1/cloudservers/delete?callerId={self.callerId}&meoId={self.meoId}&userId={self.tenant_id}'
+        self._ecs_ids()
+        servers = []
+        if isinstance(ecs_name[0], tuple):
+            ecs_name = ecs_name[0]
+        for ecs in ecs_name:
+            servers.append({'id': self.ecs_ids[ecs], 'siteId': self.region_id})
+        send_data = {'servers': servers}
+        return self.request('POST', url, send_data).get('jobId')
+
+    def delete_ecs_by_id(self, ecs_ids):
+        """
+        删除云服务器
+        :param ecs_name: 云服务器名称；可传入多个ECS名称批量删除
+        :return: 任务id
+        """
+        url = f'/v1/cloudservers/delete?callerId={self.callerId}&meoId={self.meoId}&userId={self.tenant_id}'
+        servers = []
+        for ecs_id in ecs_ids:
+            servers.append({'id': ecs_id, 'siteId': self.region_id})
+        send_data = {'servers': servers}
+        return self.request('POST', url, send_data).get('jobId')
+
+    def change_ecs_name(self, ecs_name, new_ecs_name):
+        """
+        -------------------
+        修改ecs名称
+        -------------------
+        :param ecs_name: 源ecs名称
+        :param new_ecs_name: 新ecs名称
+        :return:
+        """
+        self._ecs_ids()
+        send_data = {
+            'callerId': self.callerId,
+            'meoId': self.meoId,
+            'userId': self.tenant_id,
+            'userName': self.tenant_name,
+            'siteId': self.region_id,
+            'serverId': self.ecs_ids[ecs_name],
+            'name': new_ecs_name
+        }
+        return self.request('PUT', f'/v1/cloudservice/cloudservers/{self.ecs_ids[ecs_name]}', send_data)
