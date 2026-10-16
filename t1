@@ -50,7 +50,7 @@ def _common_check_func(get_detail_func, get_detail_para, status_para_name, expec
     return False, detail
 
 
-class TcsmScOpenApi(ApiClient, CommonApi):
+class TcsmScOpenApi(ApiClient):
     """
     接口调用类
     """
