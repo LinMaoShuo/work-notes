@@ -1,0 +1,11 @@
+def clear(confirm: bool = True):
+    """
+    confirm=False,
+    """
+    if not confirm:
+        return {"status": "error", "message": "confirm=True is required"}
+    print("清理")
+
+
+
+clear()
