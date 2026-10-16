@@ -1,0 +1,180 @@
+# -*- coding: utf-8 -*-
+
+import json
+
+import requests
+import urllib3
+from pythonspidersdk.logger import logger
+
+from Library.common.Dict import to_Dict
+
+
+class ApiClient:
+
+    def __init__(self, protocol: str, host: str, port: str):
+        """
+        client初始化基类
+        :param protocol: http/https
+        :param host: 主机名、url或者ip
+        :param port: 端口号
+        """
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+        if host.__contains__(":") and not host.__contains__("["):
+            self.host = "[{}]".format(host)
+        else:
+            self.host = host
+        self.protocol = protocol
+        self.port = port
+        self._baseurl = "%s://%s:%s" % (self.protocol, self.host, self.port)
+        self.headers = {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json',
+        }
+        self.verify_ssl = False
+        self.cert = None
+        self.http_status_code_list = [200, 201, 202, 204, 302, 409]
+
+    def set_baseurl(self, new_host):
+        self._baseurl = "%s://%s:%s" % (self.protocol, new_host, self.port)
+
+    def set_port(self, port):
+        """
+        修改端口号接口
+        :param port: 端口号
+        :return: None
+        """
+        self.port = port
+        self._baseurl = "%s://%s:%s" % (self.protocol, self.host, self.port)
+
+    def _get_token(self, data):
+        pass
+
+    def set_header(self, key, val):
+        """
+        修改header接口
+        :param key: header名称
+        :param val: header值
+        :return: None
+        """
+        self.headers[key] = val
+
+    def rmv_header(self, key):
+        """
+        删除header接口
+        :param key: header名称
+        :return: None
+        """
+        if key in self.headers:
+            del self.headers[key]
+
+    def _request(self, method, path, data, params=None, allow_redirects=False, stream=False):
+        """
+        发送request请求接口
+        :param method: GET/POST/PUT/DELETE/PATCH
+        :param path: 请求路径，拼接再https://host:port/之后
+        :param data: POST/PATH请求data
+        :param params: GET请求params
+        :return: resp: request_return_code_and_data.requests的全部返回值
+        """
+        request_func_dict = {
+            'POST': requests.post,
+            'GET': requests.get,
+            'DELETE': requests.delete,
+            'PUT': requests.put,
+            'PATCH': requests.patch
+        }
+        try:
+            func = request_func_dict.get(method)
+            url = self._baseurl.strip('/') + '/' + path.lstrip('/')
+            if isinstance(data, dict):
+                data = json.dumps(data)
+            logger.debug("******* request_return_code_and_data body: %s %s %s******" % (method, url, str(data)))
+            logger.debug("**** request_return_code_and_data header: %s %s %s***" % (method, url, str(self.headers)))
+            resp = func(url=url, data=data, params=params, headers=self.headers, verify=False,
+                        allow_redirects=allow_redirects, stream=stream)
+            logger.debug("******* response header: %s %s ******" % (resp.status_code, resp.headers))
+            logger.debug(
+                "******* response body: %s %s ******" % (resp.status_code, resp.text.strip().replace('\n', '')))
+            return resp
+        except ValueError as e:
+            logger.error("******* REQUEST ERROR: %s ******" % str(e))
+
+    def _request_simulators(self, method, path, data, params=None, allow_redirects=False):
+        """
+        发送MEO模拟器request请求接口
+        :param method: GET/POST/PUT/DELETE/PATCH
+        :param path: 请求路径，拼接再https://host:port/之后
+        :param data: POST/PATH请求data
+        :param params: GET请求params
+        :return: resp: request_return_code_and_data.requests的全部返回值
+        """
+        request_func_dict = {
+            'POST': requests.post,
+            'GET': requests.get,
+            'DELETE': requests.delete,
+            'PUT': requests.put,
+            'PATCH': requests.patch
+        }
+        try:
+            func = request_func_dict.get(method)
+            if isinstance(data, dict):
+                data = json.dumps(data)
+            logger.debug("******* request_return_code_and_data body: %s %s %s******" % (method, path, str(data)))
+            logger.debug("**** request_return_code_and_data header: %s %s %s***" % (method, path, str(self.headers)))
+            resp = func(url=path, data=data, params=params, headers=self.headers, verify=False,
+                        allow_redirects=allow_redirects)
+            logger.debug("******* response header: %s %s ******" % (resp.status_code, resp.headers))
+            logger.debug("******* response body: %s %s ******" % (resp.status_code, resp.text.strip()))
+            return resp
+        except ValueError as e:
+            logger.error("******* REQUEST ERROR: %s ******" % str(e))
+
+    def request_return_code_and_data(self, method, path, data=None, params=None, throw_error=True):
+        resp = self.request_return_all(method, path, data, params, throw_error)
+        try:
+            resp_data = to_Dict(resp.json())
+        except json.decoder.JSONDecodeError:
+            resp_data = {}
+        return resp.status_code, resp_data
+
+    def request(self, method, path, data=None, params=None, throw_error=True):
+        _, resp_data = self.request_return_code_and_data(method, path, data, params, throw_error)
+        return resp_data
+
+    def request_return_all(self, method, path, data=None, params=None, throw_error=True, allow_redirects=False):
+        resp = self._request(method, path, data, params, allow_redirects=allow_redirects)
+        if resp.status_code not in self.http_status_code_list and throw_error:
+            raise ValueError('response status error: %s, resp_data: %s' % (resp.status_code, resp.json()))
+        return resp
+
+    def request_return_all_simulators(self, method, path, data=None, params=None, throw_error=True,
+                                      allow_redirects=False):
+        resp = self._request_simulators(method, path, data, params, allow_redirects=allow_redirects)
+        if resp.status_code not in self.http_status_code_list and throw_error:
+            raise ValueError('response status error: %s, resp_data: %s' % (resp.status_code, resp.json()))
+        return resp
+
+    def request_retry_return_all(self, method, path, data=None, params=None, allow_redirects=False):
+        for i in range(5):
+            resp = self._request(method, path, data, params, allow_redirects=allow_redirects)
+            if resp.status_code not in self.http_status_code_list:
+                raise ValueError('response status error: %s, resp_data: %s' % (resp.status_code, resp.json()))
+            else:
+                return resp
+
+    def request_download(self, method, path, data=None, params=None, allow_redirects=False, stream=True):
+        """
+        适合下载
+        @return:
+        """
+        resp = self._request(method, path, data, params, allow_redirects=allow_redirects, stream=stream)
+        if resp.status_code not in self.http_status_code_list:
+            raise ValueError('response status error: %s' % resp.status_code)
+        return resp
+
+    def assert_true(self, expr):
+        if not expr:
+            raise AssertionError("未正确返回值")
+
+    def __del__(self):
+        pass
